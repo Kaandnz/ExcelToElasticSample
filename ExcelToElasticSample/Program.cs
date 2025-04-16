@@ -7,6 +7,7 @@ using Nest;
 using ExcelDataReader;
 using System.Text;
 using Elasticsearch.Net;
+using ExcelToElasticSample.Jobs;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
@@ -20,6 +21,7 @@ builder.Services.AddHangfire(config =>
 
 builder.Services.AddHangfireServer();
 builder.Services.AddTransient<ExcelToElasticJob>();
+builder.Services.AddTransient<ScheduledImportJob>();
 
 builder.Services.AddSingleton(serviceProvider =>
 {
@@ -37,6 +39,12 @@ builder.Services.AddControllers();
 var app = builder.Build();
 
 app.UseHangfireDashboard();
+
+RecurringJob.AddOrUpdate<ScheduledImportJob>(
+    "excel-import-recurring-job",
+    job => job.Execute(),
+    Cron.Minutely 
+);
 
 app.MapControllers();
 

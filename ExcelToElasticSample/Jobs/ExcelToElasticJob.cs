@@ -16,8 +16,9 @@ public class ExcelToElasticJob
        
         var filePath = @"C:\Users\Acer\Desktop\Product.xlsx";
 
-       
-        using (var stream = File.Open(filePath, FileMode.Open, FileAccess.Read))
+
+        using (var stream = File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+
         {
             using (var reader = ExcelReaderFactory.CreateReader(stream))
             {
