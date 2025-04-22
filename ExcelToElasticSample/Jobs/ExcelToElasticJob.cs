@@ -1,76 +1,63 @@
 ﻿using Nest;
 using ExcelDataReader;
 using ExcelToElasticSample.Models;
+using ExcelToElasticSample.Services;
+using Elasticsearch.Net;
 
-public class ExcelToElasticJob
+namespace ExcelToElasticSample.Jobs
 {
-    private readonly ElasticClient _client;
-
-    public ExcelToElasticJob(ElasticClient client)
+    public class ExcelToElasticJob
     {
-        _client = client;
-    }
+        private readonly ElasticClient _client;
 
-    public void ExecuteJob(string excelFilePath)
-    {
-       
-        var filePath = @"C:\Users\Acer\Desktop\Product.xlsx";
-
-
-        using (var stream = File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-
+        public ExcelToElasticJob(ElasticClient client)
         {
-            using (var reader = ExcelReaderFactory.CreateReader(stream))
+            _client = client;
+            var ping = _client.Ping();
+            Console.WriteLine($"Elasticsearch ping sonucu: {ping.IsValid}  |  Hata: {ping.OriginalException?.Message}");
+        }
+
+
+        public void ExecuteJob(string excelFilePath)
+        {
+            Console.WriteLine("Job başladı…");
+
+            // 1) Elasticsearch ping
+            var ping = _client.Ping();
+            Console.WriteLine($"Ping: {ping.IsValid} | Hata: {ping.OriginalException?.Message}");
+
+            var productList = new List<Product>();
+
+            using var stream = File.Open(excelFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var reader = ExcelReaderFactory.CreateReader(stream);
+
+            bool isHeader = true;
+            while (reader.Read())
             {
-                bool isFirstRow = true;
-                var productList = new List<Product>();
+                if (isHeader) { isHeader = false; continue; }
+                productList.Add(ExcelProductMapper.Map(reader));
+            }
 
-                while (reader.Read())
-                {
-                    if (isFirstRow)
-                    {
-                        isFirstRow = false;
-                        continue; 
-                    }
+            Console.WriteLine($"Excel’den okunan satır: {productList.Count}");
 
-                    var product = new Product
-                    {
-                        Id = reader.GetValue(0)?.ToString(),
-                        Name = reader.GetValue(3)?.ToString(),
-                        ManufacturerName = reader.GetValue(9)?.ToString(),
-                        CreateDate = DateTime.TryParse(reader.GetValue(11)?.ToString(), out var createDt) ? createDt : (DateTime?)null,
-                        Price = decimal.TryParse(reader.GetValue(19)?.ToString(), out var priceVal) ? priceVal : (decimal?)null,
-                        OldPrice = decimal.TryParse(reader.GetValue(20)?.ToString(), out var oldPriceVal) ? oldPriceVal : (decimal?)null,
-                        ProductScore = double.TryParse(reader.GetValue(13)?.ToString(), out var prodScore) ? prodScore : (double?)null,
-                        Rating = double.TryParse(reader.GetValue(44)?.ToString(), out var ratingVal) ? ratingVal : (double?)null,
-                        StockQuantity = int.TryParse(reader.GetValue(47)?.ToString(), out var stockQty) ? stockQty : (int?)null,
-                        PublishedOnUtc = DateTime.TryParse(reader.GetValue(62)?.ToString(), out var pubDate) ? pubDate : (DateTime?)null,
-                        TopCategoryName = reader.GetValue(29)?.ToString(),
-                        Language = reader.GetValue(16)?.ToString(),
-                        SoldCount = int.TryParse(reader.GetValue(21)?.ToString(), out var soldCount) ? soldCount : (int?)null,
-                        MediaType = reader.GetValue(22)?.ToString(),
-                        CommentCount = int.TryParse(reader.GetValue(26)?.ToString(), out var commentCount) ? commentCount : (int?)null,
-                        PersonName = reader.GetValue(30)?.ToString(),
-                        PublisherName = reader.GetValue(31)?.ToString(),
-                        ProductFavCount = int.TryParse(reader.GetValue(53)?.ToString(), out var favCount) ? favCount : (int?)null,
-                        ProductPictureCount = int.TryParse(reader.GetValue(54)?.ToString(), out var picCount) ? picCount : (int?)null,
-                        IsEbook = reader.GetValue(34)?.ToString() == "1",
-                        IsShippingFreeProduct = reader.GetValue(59)?.ToString() == "1",
-                    };
+            var bulkResponse = _client.Bulk(b => b
+                .Index(ElasticIndexConstants.ProductIndex)
+                .IndexMany(productList, (d, p) => d.Id(p.Id))
+            );
 
+            if (!bulkResponse.IsValid || bulkResponse.Errors)
+            {
+                Console.WriteLine("❌ BULK HATALI — detay:");
+                Console.WriteLine(bulkResponse.DebugInformation);
 
-                    productList.Add(product);
-                }
-
-                var bulkResponse = _client.Bulk(b => b
-                    .Index("products")
-                    .IndexMany(productList)
-                );
-
-                Console.WriteLine("Excel verileri başarıyla Elasticsearch'e aktarıldı.");
-
+                foreach (var item in bulkResponse.ItemsWithErrors)
+                    Console.WriteLine($"ID:{item.Id} | {item.Error?.Type} – {item.Error?.Reason}");
+            }
+            else
+            {
+                Console.WriteLine($"✅ Bulk OK — eklenen belge: {bulkResponse.Items.Count}");
             }
         }
-    }
 
+    }
 }

@@ -23,5 +23,13 @@
         public int? ProductPictureCount { get; set; }
         public bool? IsEbook { get; set; }
         public bool? IsShippingFreeProduct { get; set; }
+
+        public string? CategoryLevel1 { get; set; }
+        public string? CategoryLevel2 { get; set; }
+        public string? CategoryLevel3 { get; set; }
+        public string? Keywords { get; set; }
+        public List<string>? CampaignNames { get; set; }
+        public string? FirstEditionYear { get; set; }
+        public bool? WillBeInStock { get; set; }
     }
 }

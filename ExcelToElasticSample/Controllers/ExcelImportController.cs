@@ -1,4 +1,5 @@
-﻿using Hangfire;
+﻿using ExcelToElasticSample.Jobs;
+using Hangfire;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
@@ -8,7 +9,7 @@ public class ExcelImportController : ControllerBase
     [HttpPost]
     public IActionResult ImportExcel()
     {
-        var excelFilePath = "C:\\path\\to\\Product.xlsx";
+        var excelFilePath = "C:\\Users\\Acer\\Downloads\\Productset.xlsx";
 
         BackgroundJob.Enqueue<ExcelToElasticJob>(job => job.ExecuteJob(excelFilePath));
 
